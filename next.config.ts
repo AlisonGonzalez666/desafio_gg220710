@@ -1,11 +1,12 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
   images: {
-    domains: [
-      'images.unsplash.com', 
-      'images.penguinrandomhouse.com', 
-      'proassetspdlcom.constatics2.com', 
-      'www.librosdelaballena.com'
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**', // El '**' le da permiso a CUALQUIER página de internet
+      },
     ],
   },
 };
