@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+#  Tienda Online con Facturación PDF y Envío por Correo
 
-## Getting Started
+Este proyecto es una aplicación de E-commerce desarrollada con Next.js. Permite a los usuarios registrarse (simulado con LocalStorage), agregar productos a un carrito de compras, generar una factura electrónica en PDF al finalizar la compra y enviarla automáticamente al correo del usuario mediante la API de Resend.
 
-First, run the development server:
+## Características Principales
+- **Autenticación Simulada:** Registro e inicio de sesión utilizando `localStorage`.
+- **Gestión de Estado:** Manejo del carrito de compras (agregar, eliminar, modificar cantidades) persistente en el cliente.
+- **Generación de PDF:** Creación dinámica de facturas comerciales utilizando `jsPDF` y `jspdf-autotable`.
+- **Notificaciones UI:** Alertas interactivas con `SweetAlert2`.
+- **Backend Integrado:** Uso de Next.js API Routes (`/api/send-invoice`) para procesar el envío de correos asíncronamente.
+- **Envío de Emails:** Integración con la plataforma `Resend` para despachar los archivos PDF adjuntos.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+ # Tecnologias Utilizadas
+- **Framework:** [Next.js](https://nextjs.org/) (React)
+- **Lenguaje:** TypeScript
+- **Estilos:** Tailwind CSS
+- **Generación PDF:** `jspdf` y `jspdf-autotable`
+- **Alertas:** `sweetalert2`
+- **Manejo de Correos:** `resend`
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Requisitos Previos
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Learn More
+1. [Node.js](https://nodejs.org/) instalado en tu computadora (versión 16.x o superior).
+2. Una cuenta activa en [Resend](https://resend.com/) y una **API Key** generada.
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+##  Instalación y Configuración Local
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+1. **Clonar el repositorio** (Si lo tienes en GitHub):
+   \`\`\`bash
+   git clone https://github.com/TU_USUARIO/TU_REPOSITORIO.git
+   cd TU_REPOSITORIO
+   \`\`\`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+2. **Instalar las dependencias del proyecto:**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+   \`\`\`bash
+   npm install
+   npm install sweetalert2 jspdf jspdf-autotable resend
+   \`\`\`
+
+3. **Configurar las Variables de Entorno (Recomendado):**
+  
+   \`\`\`env
+   RESEND_API_KEY=re_AQUI_VA_TU_CLAVE_DE_RESEND
+   \`\`\`
+
+
+4. **Iniciar el servidor de desarrollo:**
+   \`\`\`bash
+   npm run dev
+   \`\`\`
+
+5. **Abrir la aplicación:**
+   Abre su navegador [http://localhost:3000](http://localhost:3000). 
+   *
+
