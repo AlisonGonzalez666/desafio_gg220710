@@ -46,7 +46,7 @@
     "title": "El señor de los anillos (Trilogía)",
     "price": 90,
     "category": "Libros",
-   "urlImage": "https://proassetspdlcom.constatics2.com/usuaris/libros/fotos/358/original/portada_pack-trilogia-el-senor-de-los-anillos_j-r-r-tolkien_202206071544.jpg"
+    "urlImage": "https://proassetspdlcom.constatics2.com/usuaris/libros/fotos/358/original/portada_pack-trilogia-el-senor-de-los-anillos_j-r-r-tolkien_202206071544.jpg"
   },
   {
     "id": 8,
@@ -86,7 +86,7 @@
   {
     "id": 13,
     "title": "Samsung Galaxy S24 Ultra",
-    "price": 1299,
+    "price": 1300,
     "category": "Celulares",
     "urlImage": "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=500"
   },
