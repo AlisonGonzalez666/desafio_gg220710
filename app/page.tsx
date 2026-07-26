@@ -175,15 +175,17 @@ export default function Home() {
     });
   };
 
-  // --- FACTURACIÓN ---
-  const handleCheckout = () => {
+  // --- FACTURACIÓN Y ENVÍO POR CORREO ELECTRÓNICO ---
+  const handleCheckout = async () => {
     if (cart.length === 0) return;
 
     const doc = new jsPDF();
     const totalAmount = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
     const orderNumber = Math.floor(100000 + Math.random() * 900000);
     const dateStr = new Date().toLocaleDateString();
+    const userEmail = email || localStorage.getItem('userEmail') || '';
 
+    // Estilos del encabezado de la factura
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
     doc.setTextColor(37, 99, 235);
@@ -194,12 +196,13 @@ export default function Home() {
     doc.setTextColor(100, 116, 139);
     doc.text("Factura Electrónica Comercial", 14, 26);
 
+    // Detalles del pedido y cliente
     doc.setFont("helvetica", "bold");
     doc.setTextColor(30, 41, 59);
     doc.text(`N° de Pedido: #${orderNumber}`, 140, 20);
     doc.setFont("helvetica", "normal");
     doc.text(`Fecha: ${dateStr}`, 140, 26);
-    doc.text(`Cliente: ${email || localStorage.getItem('userEmail')}`, 140, 32);
+    doc.text(`Cliente: ${userEmail}`, 140, 32);
 
     doc.setDrawColor(226, 232, 240);
     doc.line(14, 38, 196, 38);
@@ -232,17 +235,65 @@ export default function Home() {
     doc.setTextColor(148, 163, 184);
     doc.text("Gracias por su compra. Este documento sirve como comprobante de pago oficial.", 14, finalY + 20);
 
+    // 1. Descarga el archivo de manera local al navegador del usuario
     doc.save(`Factura_Pedido_${orderNumber}.pdf`);
 
+    // 2. Extrae la información en formato Base64 para el envío por correo electrónico
+    const pdfOutput = doc.output('datauristring');
+    const pdfBase64 = pdfOutput.split(',')[1]; 
+
+    // Alerta visual de espera en lo que responde el servidor backend
     Swal.fire({
-      title: '¡Procesando Facturación y Envío!',
-      text: `Hemos generado tu orden #${orderNumber}. Se ha enviado una copia digital de la factura en PDF al correo: ${email || localStorage.getItem('userEmail')}`,
-      icon: 'success',
-      confirmButtonText: 'Entendido',
-      confirmButtonColor: '#2563eb'
-    }).then(() => {
-      setCart([]);
+      title: 'Enviando comprobante...',
+      text: 'Por favor espera mientras despachamos la factura a tu correo electrónico.',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
     });
+
+    try {
+      // Petición HTTP POST a nuestra API interna de Next.js
+      const response = await fetch('/api/send-invoice', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: userEmail,
+          orderNumber: orderNumber,
+          pdfBase64: pdfBase64
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Swal.fire({
+          title: '¡Compra Finalizada con Éxito!',
+          text: `Hemos generado tu orden #${orderNumber}. Se ha enviado una copia digital de la factura en PDF al correo: ${userEmail}`,
+          icon: 'success',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#2563eb'
+        }).then(() => {
+          setCart([]);
+        });
+      } else {
+        throw new Error(data.error || 'Error desconocido al enviar');
+      }
+
+    } catch (error) {
+      console.error(error);
+      Swal.fire({
+        title: 'Pedido Procesado',
+        text: `Tu PDF se descargó localmente, pero hubo un inconveniente al despachar el correo electrónico.`,
+        icon: 'warning',
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#2563eb'
+      }).then(() => {
+        setCart([]);
+      });
+    }
   };
 
   const filteredProducts = categoryFilter === 'Todas'
