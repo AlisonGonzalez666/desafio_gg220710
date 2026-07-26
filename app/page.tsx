@@ -2,11 +2,10 @@
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // <-- Cambio aquí
+import autoTable from 'jspdf-autotable';
 import productsData from "./data/products.json";
 import ProductCard from "./components/ProductCard";
 
-// Definimos las estructuras de datos claras
 interface Product {
   id: number;
   title: string;
@@ -20,25 +19,20 @@ interface CartItem extends Product {
 }
 
 export default function Home() {
-  // --- ESTADOS DE LA APLICACIÓN ---
   const [categoryFilter, setCategoryFilter] = useState<string>('Todas');
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  // Estados para el Login
+  // Estados para la autenticación
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [isRegistering, setIsRegistering] = useState<boolean>(false); // <-- NUEVO: Para alternar vistas
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
 
-  // Estado para evitar errores de hidratación en Next.js
   const [isMounted, setIsMounted] = useState<boolean>(false);
-
-  // Aseguramos que el JSON de productos cumpla con la interfaz estricta
   const products: Product[] = productsData as Product[];
 
-  // --- EFECTOS (Persistencia segura en LocalStorage) ---
   useEffect(() => {
     setIsMounted(true);
-
     const authStatus = localStorage.getItem('isLoggedIn');
     if (authStatus === 'true') {
       setIsLoggedIn(true);
@@ -62,9 +56,8 @@ export default function Home() {
     }
   }, [cart, isMounted]);
 
-
-  // --- LÓGICA DE AUTENTICACIÓN ---
-  const handleLogin = (e: React.FormEvent) => {
+  // --- NUEVA LÓGICA DE REGISTRO ---
+  const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.includes('@') || password.length < 4) {
       Swal.fire({
@@ -74,9 +67,43 @@ export default function Home() {
       });
       return;
     }
+
+    // Guardamos las credenciales en localStorage simulando una base de datos
+    localStorage.setItem(`user_pwd_${email}`, password);
+    
+    Swal.fire({
+      icon: 'success',
+      title: '¡Registro Exitoso!',
+      text: 'Ahora puedes iniciar sesión con tus credenciales.',
+      timer: 2000,
+      showConfirmButton: false
+    });
+
+    // Limpiamos campos y pasamos al Login
+    setPassword('');
+    setIsRegistering(false);
+  };
+
+  // --- LÓGICA DE LOGIN CORREGIDA ---
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Buscamos la contraseña registrada para este correo
+    const savedPassword = localStorage.getItem(`user_pwd_${email}`);
+
+    if (!savedPassword || savedPassword !== password) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error de autenticación',
+        text: 'El correo no está registrado o la contraseña es incorrecta.',
+      });
+      return;
+    }
+
     localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('userEmail', email);
     setIsLoggedIn(true);
+    
     Swal.fire({
       icon: 'success',
       title: '¡Bienvenido!',
@@ -95,8 +122,7 @@ export default function Home() {
     setCart([]);
   };
 
-
-  // --- LÓGICA DEL CARRITO DE COMPRAS ---
+  // --- LÓGICA DEL CARRITO ---
   const handleAddToCart = (product: Product) => {
     setCart((prevCart) => {
       const exists = prevCart.find((item) => item.id === product.id);
@@ -149,7 +175,7 @@ export default function Home() {
     });
   };
 
-  // --- LÓGICA DE FACTURACIÓN (GENERACIÓN DE PDF Y ENVÍO) ---
+  // --- FACTURACIÓN ---
   const handleCheckout = () => {
     if (cart.length === 0) return;
 
@@ -158,7 +184,6 @@ export default function Home() {
     const orderNumber = Math.floor(100000 + Math.random() * 900000);
     const dateStr = new Date().toLocaleDateString();
 
-    // Estilos del Encabezado de la factura
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
     doc.setTextColor(37, 99, 235);
@@ -169,7 +194,6 @@ export default function Home() {
     doc.setTextColor(100, 116, 139);
     doc.text("Factura Electrónica Comercial", 14, 26);
 
-    // Detalles del pedido y cliente
     doc.setFont("helvetica", "bold");
     doc.setTextColor(30, 41, 59);
     doc.text(`N° de Pedido: #${orderNumber}`, 140, 20);
@@ -177,11 +201,9 @@ export default function Home() {
     doc.text(`Fecha: ${dateStr}`, 140, 26);
     doc.text(`Cliente: ${email || localStorage.getItem('userEmail')}`, 140, 32);
 
-    // Línea divisoria
     doc.setDrawColor(226, 232, 240);
     doc.line(14, 38, 196, 38);
 
-    // Estructurar los datos para la tabla
     const tableBody = cart.map(item => [
       item.title,
       item.category,
@@ -190,7 +212,6 @@ export default function Home() {
       `$${(Number(item.price) * item.quantity).toFixed(2)}`
     ]);
 
-    // Generar la tabla de manera directa pasándole el documento (Evita el error anterior)
     autoTable(doc, {
       startY: 45,
       head: [['Producto', 'Categoría', 'Precio Unitario', 'Cantidad', 'Subtotal']],
@@ -201,22 +222,18 @@ export default function Home() {
       margin: { top: 45 }
     });
 
-    // Añadir el total al final de la tabla de forma segura
     const finalY = (doc as any).lastAutoTable.finalY + 10;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.text(`TOTAL A PAGAR: $${totalAmount.toFixed(2)}`, 140, finalY);
 
-    // Pie de página
     doc.setFontSize(9);
     doc.setFont("helvetica", "italic");
     doc.setTextColor(148, 163, 184);
     doc.text("Gracias por su compra. Este documento sirve como comprobante de pago oficial.", 14, finalY + 20);
 
-    // Guardar el archivo PDF
     doc.save(`Factura_Pedido_${orderNumber}.pdf`);
 
-    // Alerta de éxito con SweetAlert2
     Swal.fire({
       title: '¡Procesando Facturación y Envío!',
       text: `Hemos generado tu orden #${orderNumber}. Se ha enviado una copia digital de la factura en PDF al correo: ${email || localStorage.getItem('userEmail')}`,
@@ -228,8 +245,6 @@ export default function Home() {
     });
   };
 
-
-  // --- FILTRADO DE PRODUCTOS ---
   const filteredProducts = categoryFilter === 'Todas'
     ? products
     : products.filter((p) => p.category === categoryFilter);
@@ -240,14 +255,15 @@ export default function Home() {
     return <div className="min-h-screen bg-gray-100 flex items-center justify-center">Cargando tienda...</div>;
   }
 
-  // --- INTERFAZ GRÁFICA ---
   return (
     <main className="min-h-screen bg-gray-100 p-6">
       {!isLoggedIn ? (
-        /* VISTA 1: FORMULARIO DE INICIO DE SESIÓN */
+        /* VISTA 1: INTERFAZ DE AUTENTICACIÓN (LOGIN / REGISTRO) */
         <div className="max-w-md mx-auto my-16 bg-white p-8 rounded-lg shadow-md border">
-          <h2 className="text-2xl font-bold text-center text-blue-600 mb-6">Iniciar Sesión</h2>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <h2 className="text-2xl font-bold text-center text-blue-600 mb-6">
+            {isRegistering ? 'Crear una Cuenta' : 'Iniciar Sesión'}
+          </h2>
+          <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Correo Electrónico</label>
               <input
@@ -274,9 +290,22 @@ export default function Home() {
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors"
             >
-              Ingresar
+              {isRegistering ? 'Registrarse' : 'Ingresar'}
             </button>
           </form>
+          
+          {/* BOTÓN PARA CAMBIAR ENTRE VISTAS */}
+          <div className="mt-4 text-center">
+            <button
+              onClick={() => {
+                setIsRegistering(!isRegistering);
+                setPassword('');
+              }}
+              className="text-sm text-blue-500 hover:underline"
+            >
+              {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate aquí'}
+            </button>
+          </div>
         </div>
       ) : (
         /* VISTA 2: APLICACIÓN COMPLETA (TIENDA Y CARRITO) */
@@ -294,14 +323,12 @@ export default function Home() {
             </div>
           </header>
 
-          {/* SECCIÓN DE FILTROS POR CATEGORÍA */}
           <div className="flex flex-wrap gap-2 justify-center mb-8">
             {categories.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setCategoryFilter(cat)}
-                className={`px-4 py-2 rounded-full font-medium text-sm transition-all ${categoryFilter === cat ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
+                className={`px-4 py-2 rounded-full font-medium text-sm transition-all ${categoryFilter === cat ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
                 {cat}
               </button>
@@ -309,7 +336,6 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* CUADRÍCULA DE PRODUCTOS DEL CATÁLOGO */}
             <div className="lg:col-span-2">
               <h2 className="text-xl font-bold mb-4 text-gray-700">Productos Disponibles ({filteredProducts.length})</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -323,7 +349,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* BARRA LATERAL DEL CARRITO DE COMPRAS */}
             <div className="bg-white p-6 rounded-lg shadow-md h-fit border">
               <h2 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Tu Carrito</h2>
               {cart.length === 0 ? (
