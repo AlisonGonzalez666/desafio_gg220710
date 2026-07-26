@@ -1,10 +1,12 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import products from "./data/products.json";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable'; // <-- Cambio aquí
+import productsData from "./data/products.json";
 import ProductCard from "./components/ProductCard";
 
-// Definimos las estructuras de datos (Typescript)
+// Definimos las estructuras de datos claras
 interface Product {
   id: number;
   title: string;
@@ -21,29 +23,44 @@ export default function Home() {
   // --- ESTADOS DE LA APLICACIÓN ---
   const [categoryFilter, setCategoryFilter] = useState<string>('Todas');
   const [cart, setCart] = useState<CartItem[]>([]);
-  
+
   // Estados para el Login
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
 
-  // --- EFECTOS (Persistencia en LocalStorage) ---
+  // Estado para evitar errores de hidratación en Next.js
+  const [isMounted, setIsMounted] = useState<boolean>(false);
+
+  // Aseguramos que el JSON de productos cumpla con la interfaz estricta
+  const products: Product[] = productsData as Product[];
+
+  // --- EFECTOS (Persistencia segura en LocalStorage) ---
   useEffect(() => {
-    // Cargar sesión y carrito al montar la página
+    setIsMounted(true);
+
     const authStatus = localStorage.getItem('isLoggedIn');
     if (authStatus === 'true') {
       setIsLoggedIn(true);
+      const savedEmail = localStorage.getItem('userEmail');
+      if (savedEmail) setEmail(savedEmail);
     }
+
     const savedCart = localStorage.getItem('cart');
     if (savedCart) {
-      setCart(JSON.parse(savedCart));
+      try {
+        setCart(JSON.parse(savedCart));
+      } catch (error) {
+        console.error("Error al parsear el carrito del localStorage", error);
+      }
     }
   }, []);
 
   useEffect(() => {
-    // Guardar carrito en localStorage cada vez que cambie
-    localStorage.setItem('cart', JSON.stringify(cart));
-  }, [cart]);
+    if (isMounted) {
+      localStorage.setItem('cart', JSON.stringify(cart));
+    }
+  }, [cart, isMounted]);
 
 
   // --- LÓGICA DE AUTENTICACIÓN ---
@@ -73,6 +90,8 @@ export default function Home() {
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('userEmail');
     setIsLoggedIn(false);
+    setEmail('');
+    setPassword('');
     setCart([]);
   };
 
@@ -82,7 +101,7 @@ export default function Home() {
     setCart((prevCart) => {
       const exists = prevCart.find((item) => item.id === product.id);
       if (exists) {
-        return prevCart.map((item) => 
+        return prevCart.map((item) =>
           item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
@@ -130,13 +149,96 @@ export default function Home() {
     });
   };
 
+  // --- LÓGICA DE FACTURACIÓN (GENERACIÓN DE PDF Y ENVÍO) ---
+  const handleCheckout = () => {
+    if (cart.length === 0) return;
+
+    const doc = new jsPDF();
+    const totalAmount = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
+    const orderNumber = Math.floor(100000 + Math.random() * 900000);
+    const dateStr = new Date().toLocaleDateString();
+
+    // Estilos del Encabezado de la factura
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(37, 99, 235);
+    doc.text("MI TIENDA ONLINE", 14, 20);
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 116, 139);
+    doc.text("Factura Electrónica Comercial", 14, 26);
+
+    // Detalles del pedido y cliente
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text(`N° de Pedido: #${orderNumber}`, 140, 20);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Fecha: ${dateStr}`, 140, 26);
+    doc.text(`Cliente: ${email || localStorage.getItem('userEmail')}`, 140, 32);
+
+    // Línea divisoria
+    doc.setDrawColor(226, 232, 240);
+    doc.line(14, 38, 196, 38);
+
+    // Estructurar los datos para la tabla
+    const tableBody = cart.map(item => [
+      item.title,
+      item.category,
+      `$${Number(item.price).toFixed(2)}`,
+      item.quantity,
+      `$${(Number(item.price) * item.quantity).toFixed(2)}`
+    ]);
+
+    // Generar la tabla de manera directa pasándole el documento (Evita el error anterior)
+    autoTable(doc, {
+      startY: 45,
+      head: [['Producto', 'Categoría', 'Precio Unitario', 'Cantidad', 'Subtotal']],
+      body: tableBody,
+      headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      styles: { font: "helvetica", fontSize: 10 },
+      margin: { top: 45 }
+    });
+
+    // Añadir el total al final de la tabla de forma segura
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text(`TOTAL A PAGAR: $${totalAmount.toFixed(2)}`, 140, finalY);
+
+    // Pie de página
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(148, 163, 184);
+    doc.text("Gracias por su compra. Este documento sirve como comprobante de pago oficial.", 14, finalY + 20);
+
+    // Guardar el archivo PDF
+    doc.save(`Factura_Pedido_${orderNumber}.pdf`);
+
+    // Alerta de éxito con SweetAlert2
+    Swal.fire({
+      title: '¡Procesando Facturación y Envío!',
+      text: `Hemos generado tu orden #${orderNumber}. Se ha enviado una copia digital de la factura en PDF al correo: ${email || localStorage.getItem('userEmail')}`,
+      icon: 'success',
+      confirmButtonText: 'Entendido',
+      confirmButtonColor: '#2563eb'
+    }).then(() => {
+      setCart([]);
+    });
+  };
+
 
   // --- FILTRADO DE PRODUCTOS ---
-  const filteredProducts = categoryFilter === 'Todas' 
-    ? products 
-    : products.filter((p: any) => p.category === categoryFilter);
+  const filteredProducts = categoryFilter === 'Todas'
+    ? products
+    : products.filter((p) => p.category === categoryFilter);
 
-  const categories = ['Todas', ...Array.from(new Set(products.map((p: any) => p.category)))];
+  const categories = ['Todas', ...Array.from(new Set(products.map((p) => p.category)))];
+
+  if (!isMounted) {
+    return <div className="min-h-screen bg-gray-100 flex items-center justify-center">Cargando tienda...</div>;
+  }
 
   // --- INTERFAZ GRÁFICA ---
   return (
@@ -148,8 +250,8 @@ export default function Home() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Correo Electrónico</label>
-              <input 
-                type="email" 
+              <input
+                type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -159,8 +261,8 @@ export default function Home() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Contraseña</label>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -168,7 +270,7 @@ export default function Home() {
                 placeholder="••••••••"
               />
             </div>
-            <button 
+            <button
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors"
             >
@@ -182,8 +284,8 @@ export default function Home() {
           <header className="mb-8 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-4 rounded-lg shadow-sm">
             <h1 className="text-3xl font-extrabold text-blue-600">Mi Tienda Online</h1>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600 font-semibold">Usuario: {email || localStorage.getItem('userEmail')}</span>
-              <button 
+              <span className="text-sm text-gray-600 font-semibold">Usuario: {email}</span>
+              <button
                 onClick={handleLogout}
                 className="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1.5 rounded transition-colors"
               >
@@ -198,9 +300,8 @@ export default function Home() {
               <button
                 key={cat}
                 onClick={() => setCategoryFilter(cat)}
-                className={`px-4 py-2 rounded-full font-medium text-sm transition-all ${
-                  categoryFilter === cat ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
+                className={`px-4 py-2 rounded-full font-medium text-sm transition-all ${categoryFilter === cat ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
               >
                 {cat}
               </button>
@@ -212,11 +313,11 @@ export default function Home() {
             <div className="lg:col-span-2">
               <h2 className="text-xl font-bold mb-4 text-gray-700">Productos Disponibles ({filteredProducts.length})</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredProducts.map((product: any) => (
-                  <ProductCard 
-                    key={product.id} 
-                    product={product} 
-                    onAddToCart={handleAddToCart} 
+                {filteredProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onAddToCart={handleAddToCart}
                   />
                 ))}
               </div>
@@ -234,7 +335,7 @@ export default function Home() {
                       <div key={item.id} className="flex justify-between items-center mb-4 border-b pb-2 text-sm text-gray-800">
                         <div className="flex-1 pr-2">
                           <p className="font-semibold">{item.title}</p>
-                          <p className="text-gray-500">${item.price} x {item.quantity}</p>
+                          <p className="text-gray-500">${Number(item.price).toFixed(2)} x {item.quantity}</p>
                         </div>
                         <div className="flex items-center gap-1">
                           <button onClick={() => updateQuantity(item.id, -1)} className="px-2 py-0.5 bg-gray-200 rounded font-bold">-</button>
@@ -245,14 +346,16 @@ export default function Home() {
                       </div>
                     ))}
                   </div>
-                  
+
                   <div className="mt-4 pt-2 border-t">
                     <div className="flex justify-between font-bold text-lg text-gray-800 mb-4">
                       <span>Total:</span>
-                      <span>${cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)}</span>
+                      <span>
+                        ${cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0).toFixed(2)}
+                      </span>
                     </div>
-                    <button 
-                      onClick={() => Swal.fire('¡Compra exitosa!', 'Simulación de procesamiento e invoice.', 'success')}
+                    <button
+                      onClick={handleCheckout}
                       className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors"
                     >
                       Finalizar Compra
